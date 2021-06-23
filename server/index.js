@@ -1,89 +1,40 @@
+const startupDebugger = require('debug')('app:startup');
+const databaseDebugger = require('debug')('app:db');
 const Joi = require("joi");
+const logger = require('./middleware/logger');
+const books = require('./routes/books');
+const home = require('./routes/home');
+const config = require('config');
 const express = require("express");
+const helmet = require('helmet');
+const morgan = require('morgan');
 
 const app = express();
 
+app.set('view engine', 'pug');
+app.set('views', './views'); // default
+
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }))
+app.use(express.static('./public'));
+app.use(helmet());
+app.use('/api/books', books);
+app.use('/', home);
 
-app.use(function(req, res, next) {
-  console.log('Logging...');
-})
-
-const books = [
-  { id: 1, name: "Clean Code" },
-  { id: 2, name: "The Road to React" },
-  { id: 3, name: "You Don't Know JS" },
-];
-
-app.get("/", (req, res) => {
-  res.send("Welcome to the Library API");
-});
-
-app.get("/api/books", (req, res) => {
-  res.send(books);
-});
-
-app.get("/api/books/:id", (req, res) => {
-  const book = books.find((b) => b.id === parseInt(req.params.id));
-  if (!book)
-    return res.status(404).send("The book with the given ID was not found."); // 404
-  res.send(book);
-});
-
-app.post("/api/books", (req, res) => {
-  const { error } = validateBook(req.body);
-
-  if (error) return res.status(400).send(error.details[0].message);
-
-  const book = {
-    id: books.length + 1,
-    name: req.body.name,
-  };
-  books.push(book);
-  res.send(book);
-});
-
-app.put("/api/books/:id", (req, res) => {
-  // Look up the book
-  // If not existing, return 404
-  const book = books.find((b) => b.id === parseInt(req.params.id));
-  if (!book)
-    return res.status(404).send("The book with the given ID was not found."); // 404
-
-  // Validate
-  // If invalid, return 404
-  const { error } = validateBook(req.body);
-
-  if (error) return res.status(400).send(error.details[0].message);
-
-  // Update book
-  book.name = req.body.name;
-  // Return the updated book
-  res.send(book);
-});
-
-app.delete("/api/books/:id", (req, res) => {
-  // Look up the book
-  // If not existing, return 404
-  const book = books.find((b) => b.id === parseInt(req.params.id));
-  if (!book)
-    return res.status(404).send("The book with the given ID was not found."); // 404
-
-  // Delete the book
-  const index = books.indexOf(book);
-  books.splice(index, 1);
-
-  // Return the deleted course
-  res.send(book);
-});
-
-function validateBook(book) {
-  const schema = {
-    name: Joi.string().min(3).required(),
-  };
-
-  return Joi.validate(book, schema);
+if (app.get('env') === 'development') {
+  app.use(morgan('tiny'));
+  startupDebugger('Morgan enabled...');
 }
+
+// Database work...
+databaseDebugger('Connected to the database...');
+
+// Configuration
+console.log('Application Name: ' + config.get('name'));
+console.log('Mail Server: ' + config.get('mail.host'));
+console.log('Mail Password: ' + config.get('mail.password'));
+
+app.use(logger);
 
 const port = process.env.PORT || 3000;
 app.listen(port, () => console.log(`Listening on Port ${port}`));
